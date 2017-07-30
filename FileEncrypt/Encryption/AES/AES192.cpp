@@ -1,0 +1,84 @@
+#include "AES192.h"
+
+void Encryption::AES192::Cipher(BYTE srcBytes[16], const UINT32 srcExpandedKey[52]) {
+    *((UINT32*)srcBytes)     ^= srcExpandedKey[0];
+    *((UINT32*)srcBytes + 1) ^= srcExpandedKey[1];
+    *((UINT32*)srcBytes + 2) ^= srcExpandedKey[2];
+    *((UINT32*)srcBytes + 3) ^= srcExpandedKey[3];
+
+    BYTE ShiftTemp;
+
+#define Swap(X, Y, Temp) Temp = X; \
+    X = Y; \
+    Y = Temp;
+
+    for(BYTE i = 1; i < 12; i++) {
+        for(BYTE j = 0; j < 16; j++) srcBytes[j] = Encryption::SBox[srcBytes[j]];
+
+        //Shift rows starts;
+        //Shift the second row;
+        Swap(srcBytes[1], srcBytes[5],  ShiftTemp)
+        Swap(srcBytes[5], srcBytes[9],  ShiftTemp)
+        Swap(srcBytes[9], srcBytes[13], ShiftTemp)
+        //Shift the third row;
+        Swap(srcBytes[2], srcBytes[10], ShiftTemp)
+        Swap(srcBytes[6], srcBytes[14], ShiftTemp)
+        //Shift the fourth row;
+        Swap(srcBytes[3],  srcBytes[15], ShiftTemp)
+        Swap(srcBytes[15], srcBytes[11], ShiftTemp)
+        Swap(srcBytes[11], srcBytes[7],  ShiftTemp)
+        //Shift rows ends;
+
+        for(BYTE j = 0; j < 16; j += 4) {
+            BYTE tmp[4];
+            *(UINT32*)tmp = *((UINT32*)srcBytes + (j >> 2));
+            srcBytes[j]     = Encryption::Multiply0x02[tmp[0]] ^ Encryption::Multiply0x03[tmp[1]] ^ tmp[2] ^ tmp[3];
+            srcBytes[j + 1] = tmp[0] ^ Encryption::Multiply0x02[tmp[1]] ^ Encryption::Multiply0x03[tmp[2]] ^ tmp[3];
+            srcBytes[j + 2] = tmp[0] ^ tmp[1] ^ Encryption::Multiply0x02[tmp[2]] ^ Encryption::Multiply0x03[tmp[3]];
+            srcBytes[j + 3] = Encryption::Multiply0x03[tmp[0]] ^ tmp[1] ^ tmp[2] ^ Encryption::Multiply0x02[tmp[3]];
+        }
+        *((UINT32*)srcBytes)     ^= srcExpandedKey[i << 2];
+        *((UINT32*)srcBytes + 1) ^= srcExpandedKey[(i << 2) + 1];
+        *((UINT32*)srcBytes + 2) ^= srcExpandedKey[(i << 2) + 2];
+        *((UINT32*)srcBytes + 3) ^= srcExpandedKey[(i << 2) + 3];
+    }
+
+    for(BYTE j = 0; j < 16; j++) 
+		srcBytes[j] = Encryption::SBox[srcBytes[j]];
+    //Shift rows starts;
+    //Shift the second row;
+    Swap(srcBytes[1], srcBytes[5],  ShiftTemp)
+    Swap(srcBytes[5], srcBytes[9],  ShiftTemp)
+    Swap(srcBytes[9], srcBytes[13], ShiftTemp)
+    //Shift the third row;
+    Swap(srcBytes[2], srcBytes[10], ShiftTemp)
+    Swap(srcBytes[6], srcBytes[14], ShiftTemp)
+    //Shift the fourth row;
+    Swap(srcBytes[3],  srcBytes[15], ShiftTemp)
+    Swap(srcBytes[15], srcBytes[11], ShiftTemp)
+    Swap(srcBytes[11], srcBytes[7],  ShiftTemp)
+    //Shift rows ends;
+
+#undef Swap
+
+    *((UINT32*)srcBytes)     ^= srcExpandedKey[48];
+    *((UINT32*)srcBytes + 1) ^= srcExpandedKey[49];
+    *((UINT32*)srcBytes + 2) ^= srcExpandedKey[50];
+    *((UINT32*)srcBytes + 3) ^= srcExpandedKey[51];
+}
+
+void Encryption::AES192::KeyExpansion(const BYTE srcKey[24], UINT32 dstExpandedKey[52]) {
+    for(BYTE i = 0; i < 6; i++) dstExpandedKey[i] = *((UINT32*)srcKey + i);
+    for(BYTE i = 6; i < 52; i++) {
+        UINT32 tmp = dstExpandedKey[i - 1];
+        if(i % 6 == 0) {
+            tmp = tmp >> 8 | tmp << 24;
+            *((BYTE*)&tmp)     = Encryption::SBox[*((BYTE*)&tmp)];
+            *((BYTE*)&tmp + 1) = Encryption::SBox[*((BYTE*)&tmp + 1)];
+            *((BYTE*)&tmp + 2) = Encryption::SBox[*((BYTE*)&tmp + 2)];
+            *((BYTE*)&tmp + 3) = Encryption::SBox[*((BYTE*)&tmp + 3)];
+            tmp ^= Encryption::Rcon[i / 6];
+        }
+        dstExpandedKey[i] = dstExpandedKey[i - 6] ^ tmp;
+    }
+}
